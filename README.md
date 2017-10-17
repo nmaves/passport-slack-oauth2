@@ -71,7 +71,7 @@ passport.use(new SlackStrategy({
 
 ### Authenticate Requests
 
-Use `passport.authorize()` (or `passport.authenticate()` if you want to authenticate with Slack and affect `req.user` and user session), specifying the `'slack'` strategy, to
+Use `passport.authenticate()` (or `passport.authorize()` if you want to authenticate with Slack and **NOT** affect `req.user` and user session), specifying the `'slack'` strategy, to
 authenticate requests.
 
 For example, as route middleware in an [Express](http://expressjs.com/)
@@ -81,7 +81,7 @@ application:
 app.get('/auth/slack', passport.authorize('Slack'));
 
 app.get('/auth/slack/callback',
-  passport.authorize('Slack', { failureRedirect: '/login' }),
+  passport.authenticate('Slack', { failureRedirect: '/login' }),
   (req, res) => res.redirect('/') // Successful authentication, redirect home.
 );
 ```
