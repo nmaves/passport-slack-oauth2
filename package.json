@@ -1,0 +1,39 @@
+{
+  "name": "passport-slack-oauth2",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [
+    "passport",
+    "slack",
+    "oauth2",
+    "auth",
+    "authentication",
+    "identity"
+  ],
+  "main": "./lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nmaves/passport-slack-oauth2.git"
+  },
+  "author": {
+    "name": "Nathan Maves",
+    "email": "nathan.maves@gmail.com"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://www.opensource.org/licenses/MIT"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/nmaves/passport-slack-oauth2/issues"
+  },
+  "homepage": "https://github.com/nmaves/passport-slack-oauth2#readme",
+  "dependencies": {
+    "passport-oauth2": "^1.4.0",
+    "pkginfo": "^0.4.1"
+  }
+}
