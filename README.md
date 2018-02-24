@@ -1,4 +1,4 @@
-# passport-slack-oath2
+# passport-slack-oauth2
 
 [Passport](https://github.com/jaredhanson/passport) strategy for authenticating
 with [Slack](https://slack.com) using the OAuth 2.0 API.
