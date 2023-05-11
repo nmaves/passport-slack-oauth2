@@ -38,7 +38,7 @@ describe('handleOAuthAccessTokenReponse', function () {
     });
   });
 
-  context('pass thru params', function () {
+  context('shared', function () {
     let property, value;
     beforeEach(function(done) {
       strategy = new Strategy(options, () => {});
@@ -100,6 +100,68 @@ describe('handleOAuthAccessTokenReponse', function () {
         });
       });
     });
+
+    context('this.profileUrl', function () {
+      context('skipUserProfile == true', function () {
+        before(function () {
+          options.skipUserProfile = true;
+        });
+
+        after(function() {
+          delete options.skipUserProfile;
+        });
+
+        it('does not change the profileUrl', function (done) {
+          strategy = new Strategy(options, () => {});
+
+          params = {
+            authed_user: { id: 'user-id' },
+            bot_user_id: 'bot-user-id',
+            scope: 'bot-scope-1,bot-scope-2',
+            access_token: 'bot-token',
+            token_type: 'bot',
+          };
+
+          accessToken = 'bot-token';
+
+          const expectedProfileUrl = strategy.profileUrl;
+
+          strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+            expect(strategy.profileUrl).to.eql(expectedProfileUrl);
+            done();
+          });
+        });
+      });
+
+      context('custom profileUrl', function () {
+        before(function () {
+          options.profileUrl = '/custom'
+        });
+
+        after(function() {
+          delete options.profileUrl;
+        });
+
+        it('does not change the profileUrl', function (done) {
+          strategy = new Strategy(options, () => {});
+
+          params = {
+            authed_user: { id: 'user-id' },
+            bot_user_id: 'bot-user-id',
+            scope: 'bot-scope-1,bot-scope-2',
+            access_token: 'bot-token',
+            token_type: 'bot',
+          };
+
+          accessToken = 'bot-token';
+
+          strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+            expect(strategy.profileUrl).to.eql('/custom');
+            done();
+          });
+        });
+      });
+    });
   });
 
   context('user auth', function () {
@@ -115,12 +177,22 @@ describe('handleOAuthAccessTokenReponse', function () {
         }
       };
 
+      expect(strategy.profileUrl).to.not.exist;
+
       strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
         actual.error = err;
         actual.accessToken = _accessToken;
         actual.refresToken = _refreshToken;
         actual.params = _params;
         done();
+      });
+    });
+
+    context('this.profileUrl', function () {
+      context('skipUserProfile == false && default profileUrl', function () {
+        it('uses the profile url to get user information', function () {
+          expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
+        });
       });
     });
 
@@ -210,12 +282,22 @@ describe('handleOAuthAccessTokenReponse', function () {
 
       accessToken = 'bot-token';
 
+      expect(strategy.profileUrl).to.not.exist;
+
       strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
         actual.error = err;
         actual.accessToken = _accessToken;
         actual.refresToken = _refreshToken;
         actual.params = _params;
         done();
+      });
+    });
+
+    context('this.profileUrl', function () {
+      context('skipUserProfile == false && default profileUrl', function () {
+        it('uses the profile url to get user information', function () {
+          expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
+        });
       });
     });
 
@@ -316,12 +398,22 @@ describe('handleOAuthAccessTokenReponse', function () {
 
       accessToken = 'bot-token';
 
+      expect(strategy.profileUrl).to.not.exist;
+
       strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
         actual.error = err;
         actual.accessToken = _accessToken;
         actual.refresToken = _refreshToken;
         actual.params = _params;
         done();
+      });
+    });
+
+    context('this.profileUrl', function () {
+      context('skipUserProfile == false && default profileUrl', function () {
+        it('uses the profile url to get user information', function () {
+          expect(strategy.profileUrl).to.eql('https://slack.com/api/users.info?user=bot-user-id');
+        });
       });
     });
 
