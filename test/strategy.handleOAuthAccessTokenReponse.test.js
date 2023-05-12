@@ -61,6 +61,7 @@ describe('handleOAuthAccessTokenReponse', function () {
         actual.accessToken = _accessToken;
         actual.refreshToken = _refreshToken;
         actual.params = _params;
+
         done();
       });
     });
