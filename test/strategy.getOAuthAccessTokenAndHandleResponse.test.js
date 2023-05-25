@@ -2,7 +2,20 @@ const { expect } = require('chai');
 
 const Strategy = require('../lib').Strategy;
 
-describe('handleOAuthAccessTokenReponse', function () {
+describe('monkey patch oauth2.getOAuthAccessToken', function () {
+  var options = {
+    clientId: 'clientId',
+    clientSecret: 'clientSecret',
+    callbackUrl: '/cb',
+  };
+
+  it('copies oauth2.getOAuthAccessToken to oauth._getOAuthAccessToken', function () {
+    var strategy = new Strategy(options, () => {});
+    expect(strategy._oauth2._getOAuthAccessToken).to.exist;
+  });
+})
+
+describe('getOAuthAccessTokenAndHandleResponse', function () {
   var options = {
     clientId: 'clientId',
     clientSecret: 'clientSecret',
@@ -23,26 +36,31 @@ describe('handleOAuthAccessTokenReponse', function () {
     params = { /* define me in test */ };
   });
 
-  context('on exception', function () {
-    beforeEach(function(done) {
+  context('on failure', function () {
+    it('surfaces errors from oauth2._getOAuthAccessToken', function (done) {
       strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) { cb(new Error('sww')) }
 
-      strategy.handleOAuthAccessTokenResponse('at', 'rt', function () { /* force an error */}, function (err) {
-        actual.error = err;
+      strategy.getOAuthAccessTokenAndHandleResponse(null, {}, function (err) {
+        expect(err).to.exist;
         done();
       });
     });
 
-    it('passes an error into the callback on exception', function () {
-      expect(actual.error).to.exist;
+    it('surfaces errors from OAuth2 Token Response parsing', function (done) {
+      strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) { cb(null, 'not', 'a', 'good response') }
+
+      strategy.getOAuthAccessTokenAndHandleResponse(null, {}, function (err) {
+        expect(err).to.exist;
+        done();
+      });
     });
-  });
+  })
 
   context('shared', function () {
     let property, value;
     beforeEach(function(done) {
-      strategy = new Strategy(options, () => {});
-
       params = {
         ok: true,
         app_id: 'app-id',
@@ -56,11 +74,16 @@ describe('handleOAuthAccessTokenReponse', function () {
       value = Date.now();
       params[property] = value;
 
-      strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+      strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
+
+      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
         actual.error = err;
-        actual.accessToken = _accessToken;
-        actual.refreshToken = _refreshToken;
-        actual.params = _params;
+        actual.accessToken = at;
+        actual.refreshToken = rt;
+        actual.params = p;
 
         done();
       });
@@ -114,6 +137,9 @@ describe('handleOAuthAccessTokenReponse', function () {
 
         it('does not change the profileUrl', function (done) {
           strategy = new Strategy(options, () => {});
+          strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+            cb(null, accessToken, refreshToken, params)
+          }
 
           params = {
             authed_user: { id: 'user-id' },
@@ -127,7 +153,7 @@ describe('handleOAuthAccessTokenReponse', function () {
 
           const expectedProfileUrl = strategy.profileUrl;
 
-          strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function () {
             expect(strategy.profileUrl).to.eql(expectedProfileUrl);
             done();
           });
@@ -145,6 +171,9 @@ describe('handleOAuthAccessTokenReponse', function () {
 
         it('does not change the profileUrl', function (done) {
           strategy = new Strategy(options, () => {});
+          strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+            cb(null, accessToken, refreshToken, params)
+          }
 
           params = {
             authed_user: { id: 'user-id' },
@@ -156,7 +185,7 @@ describe('handleOAuthAccessTokenReponse', function () {
 
           accessToken = 'bot-token';
 
-          strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function () {
             expect(strategy.profileUrl).to.eql('/custom');
             done();
           });
@@ -168,6 +197,9 @@ describe('handleOAuthAccessTokenReponse', function () {
   context('user auth', function () {
     beforeEach(function(done) {
       strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
 
       params = {
         authed_user: {
@@ -180,17 +212,18 @@ describe('handleOAuthAccessTokenReponse', function () {
 
       expect(strategy.profileUrl).to.not.exist;
 
-      strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
         actual.error = err;
-        actual.accessToken = _accessToken;
-        actual.refresToken = _refreshToken;
-        actual.params = _params;
+        actual.accessToken = at;
+        actual.refreshToken = rt;
+        actual.params = p;
+
         done();
       });
     });
 
     context('this.profileUrl', function () {
-      context('skipUserProfile == false && default profileUrl', function () {
+      context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
         it('uses the profile url to get user information', function () {
           expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
         });
@@ -267,6 +300,9 @@ describe('handleOAuthAccessTokenReponse', function () {
   context('user and bot auth', function (done) {
     beforeEach(function(done) {
       strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
 
       params = {
         authed_user: {
@@ -285,17 +321,18 @@ describe('handleOAuthAccessTokenReponse', function () {
 
       expect(strategy.profileUrl).to.not.exist;
 
-      strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
         actual.error = err;
-        actual.accessToken = _accessToken;
-        actual.refresToken = _refreshToken;
-        actual.params = _params;
+        actual.accessToken = at;
+        actual.refreshToken = rt;
+        actual.params = p;
+
         done();
       });
     });
 
     context('this.profileUrl', function () {
-      context('skipUserProfile == false && default profileUrl', function () {
+      context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
         it('uses the profile url to get user information', function () {
           expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
         });
@@ -388,6 +425,9 @@ describe('handleOAuthAccessTokenReponse', function () {
   context('bot auth', function () {
     beforeEach(function(done) {
       strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
 
       params = {
         authed_user: { id: 'user-id' },
@@ -401,17 +441,18 @@ describe('handleOAuthAccessTokenReponse', function () {
 
       expect(strategy.profileUrl).to.not.exist;
 
-      strategy.handleOAuthAccessTokenResponse(accessToken, refreshToken, params, function (err, _accessToken, _refreshToken, _params) {
+      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
         actual.error = err;
-        actual.accessToken = _accessToken;
-        actual.refresToken = _refreshToken;
-        actual.params = _params;
+        actual.accessToken = at;
+        actual.refreshToken = rt;
+        actual.params = p;
+
         done();
       });
     });
 
     context('this.profileUrl', function () {
-      context('skipUserProfile == false && default profileUrl', function () {
+      context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
         it('uses the profile url to get user information', function () {
           expect(strategy.profileUrl).to.eql('https://slack.com/api/users.info?user=bot-user-id');
         });
