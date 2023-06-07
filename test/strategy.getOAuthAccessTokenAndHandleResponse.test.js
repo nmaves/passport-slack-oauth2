@@ -31,8 +31,8 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
   beforeEach(function() {
     actual = {};
     strategy = null;
-    accessToken = null;
-    refreshToken = null;
+    accessToken = 'at';
+    refreshToken = 'rt';
     params = { /* define me in test */ };
   });
 
@@ -49,7 +49,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
 
     it('surfaces errors from OAuth2 Token Response parsing', function (done) {
       strategy = new Strategy(options, () => {});
-      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) { cb(null, 'not', 'a', 'good response') }
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, 'not', 'a', 'good response')
+      }
 
       strategy.getOAuthAccessTokenAndHandleResponse(null, {}, function (err) {
         expect(err).to.exist;
@@ -61,6 +63,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
   context('shared', function () {
     let property, value;
     beforeEach(function(done) {
+      accessToken = 'at';
+      refreshToken = 'rt';
+
       params = {
         ok: true,
         app_id: 'app-id',
@@ -85,11 +90,11 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
         actual.refreshToken = rt;
         actual.params = p;
 
-        done();
+        done(err);
       });
     });
 
-    context('root object', function () {
+    context('params', function () {
       it('passes through the ok property', function () {
         expect(actual.params.ok).to.be.true;
       });
@@ -141,6 +146,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
             cb(null, accessToken, refreshToken, params)
           }
 
+          accessToken = 'bot-access-token';
+          refreshToken = 'bot-refresh-token';
+
           params = {
             authed_user: { id: 'user-id' },
             bot_user_id: 'bot-user-id',
@@ -153,9 +161,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
 
           const expectedProfileUrl = strategy.profileUrl;
 
-          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function () {
+          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err) {
             expect(strategy.profileUrl).to.eql(expectedProfileUrl);
-            done();
+            done(err);
           });
         });
       });
@@ -175,6 +183,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
             cb(null, accessToken, refreshToken, params)
           }
 
+          accessToken = 'bot-access-token';
+          refreshToken = 'bot-refresh-token';
+
           params = {
             authed_user: { id: 'user-id' },
             bot_user_id: 'bot-user-id',
@@ -185,9 +196,9 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
 
           accessToken = 'bot-token';
 
-          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function () {
+          strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err) {
             expect(strategy.profileUrl).to.eql('/custom');
-            done();
+            done(err);
           });
         });
       });
@@ -196,19 +207,24 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
 
   context('user auth', function () {
     beforeEach(function(done) {
-      strategy = new Strategy(options, () => {});
-      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
-        cb(null, accessToken, refreshToken, params)
-      }
+      accessToken = undefined
+      refreshToken = undefined
 
       params = {
         authed_user: {
           id: 'user-id',
           scope: 'user-scope-1,user-scope-2',
+          token_type: 'user',
           access_token: 'user-access-token',
-          token_type: 'user'
+          refresh_token: 'user-refresh-token',
+          expires_in: (Math.floor(Math.random() * 39600) + 3600)
         }
       };
+
+      strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
 
       expect(strategy.profileUrl).to.not.exist;
 
@@ -218,13 +234,13 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
         actual.refreshToken = rt;
         actual.params = p;
 
-        done();
+        done(err);
       });
     });
 
     context('this.profileUrl', function () {
       context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
-        it('uses the profile url to get user information', function () {
+        it('sets the profileUrl to users.identity', function () {
           expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
         });
       });
@@ -242,7 +258,7 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('returns the correct refreshToken', function () {
-        expect(actual.refreshToken).to.not.exist;
+        expect(actual.refreshToken).to.eql('user-refresh-token')
       });
     });
 
@@ -264,7 +280,11 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('sets the user refresh_token as a root property', function () {
-        expect(actual.params.refresh_token).to.not.exist;
+        expect(actual.params.refresh_token).to.eql('user-refresh-token')
+      });
+
+      it("sets the user's access_token expires_in as a root property", function () {
+        expect(actual.params.expires_in).to.eql(params.authed_user.expires_in)
       });
     });
 
@@ -286,7 +306,11 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('sets the user refresh_token on the authed_user property', function () {
-        expect(actual.params.authed_user.refresh_token).to.not.exist;
+        expect(actual.params.authed_user.refresh_token).to.eql('user-refresh-token')
+      });
+
+      it("sets the user's access_token's expires_in on the authed_user property", function () {
+        expect(actual.params.authed_user.expires_in).to.eql(params.authed_user.expires_in)
       });
     });
 
@@ -297,147 +321,24 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
     });
   });
 
-  context('user and bot auth', function (done) {
-    beforeEach(function(done) {
-      strategy = new Strategy(options, () => {});
-      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
-        cb(null, accessToken, refreshToken, params)
-      }
-
-      params = {
-        authed_user: {
-          id: 'user-id',
-          scope: 'user-scope-1,user-scope-2',
-          access_token: 'user-access-token',
-          token_type: 'user'
-        },
-        bot_user_id: 'bot-user-id',
-        scope: 'bot-scope-1,bot-scope-2',
-        access_token: 'bot-token',
-        token_type: 'bot',
-      };
-
-      accessToken = 'bot-token';
-
-      expect(strategy.profileUrl).to.not.exist;
-
-      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
-        actual.error = err;
-        actual.accessToken = at;
-        actual.refreshToken = rt;
-        actual.params = p;
-
-        done();
-      });
-    });
-
-    context('this.profileUrl', function () {
-      context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
-        it('uses the profile url to get user information', function () {
-          expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
-        });
-      });
-    });
-
-    context('error', function () {
-      it('does not return an error', function () {
-        expect(actual.error).to.be.null;
-      });
-    });
-
-    context('tokens', function () {
-      it('returns the correct accessToken', function () {
-        expect(actual.accessToken).to.eql('user-access-token');
-      });
-
-      it('returns the correct refreshToken', function () {
-        expect(actual.refreshToken).to.not.exist;
-      });
-    });
-
-    context('root object', function () {
-      it('sets the user id as a root property', function () {
-        expect(actual.params.id).to.eql('user-id');
-      });
-
-      it('sets the user scope as a root property', function () {
-        expect(actual.params.scope).to.eql('user-scope-1,user-scope-2');
-      });
-
-      it('sets the user tokentype as a root property', function () {
-        expect(actual.params.token_type).to.eql('user');
-      });
-
-      it('sets the user access_token as a root property', function () {
-        expect(actual.params.access_token).to.eql('user-access-token');
-      });
-
-      it('sets the user refresh_token as a root property', function () {
-        expect(actual.params.refresh_token).to.not.exist;
-      });
-    });
-
-    context('authed_user', function () {
-      it('sets the user id on the authed_user property', function () {
-        expect(actual.params.authed_user.id).to.eql('user-id');
-      });
-
-      it('sets the user scope on the authed_user property', function () {
-        expect(actual.params.authed_user.scope).to.eql('user-scope-1,user-scope-2');
-      });
-
-      it('sets the user tokentype on the authed_user property', function () {
-        expect(actual.params.authed_user.token_type).to.eql('user');
-      });
-
-      it('sets the user access_token on the authed_user property', function () {
-        expect(actual.params.authed_user.access_token).to.eql('user-access-token');
-      });
-
-      it('sets the user refresh_token on the authed_user property', function () {
-        expect(actual.params.authed_user.refresh_token).to.not.exist;
-      });
-    });
-
-    context('authed_bot', function () {
-      it('sets the bot id on the authed_bot property', function () {
-        expect(actual.params.authed_bot.id).to.eql('bot-user-id');
-      });
-
-      it('sets the bot scope on the authed_bot property', function () {
-        expect(actual.params.authed_bot.scope).to.eql('bot-scope-1,bot-scope-2');
-      });
-
-      it('sets the bot tokentype on the authed_bot property', function () {
-        expect(actual.params.authed_bot.token_type).to.eql('bot');
-      });
-
-      it('sets the bot access_token on the authed_bot property', function () {
-        expect(actual.params.authed_bot.access_token).to.eql('bot-token');
-      });
-
-      it('sets the bot refresh_token on the authed_bot property', function () {
-        expect(actual.params.authed_bot.refresh_token).to.not.exist;
-      });
-    });
-  });
-
   context('bot auth', function () {
     beforeEach(function(done) {
-      strategy = new Strategy(options, () => {});
-      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
-        cb(null, accessToken, refreshToken, params)
-      }
+      accessToken = 'bot-access-token';
+      refreshToken = 'bot-refresh-token';
 
       params = {
         authed_user: { id: 'user-id' },
         bot_user_id: 'bot-user-id',
         scope: 'bot-scope-1,bot-scope-2',
-        access_token: 'bot-token',
+        access_token: 'bot-access-token',
+        expires_in: (Math.floor(Math.random() * 39600) + 3600),
         token_type: 'bot',
       };
 
-      accessToken = 'bot-token';
+      strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
 
       expect(strategy.profileUrl).to.not.exist;
 
@@ -447,13 +348,13 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
         actual.refreshToken = rt;
         actual.params = p;
 
-        done();
+        done(err);
       });
     });
 
     context('this.profileUrl', function () {
       context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
-        it('uses the profile url to get user information', function () {
+        it('sets the profileUrl to users.info', function () {
           expect(strategy.profileUrl).to.eql('https://slack.com/api/users.info?user=bot-user-id');
         });
       });
@@ -467,11 +368,11 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
 
     context('tokens', function () {
       it('returns the correct accessToken', function () {
-        expect(actual.accessToken).to.eql('bot-token');
+        expect(actual.accessToken).to.eql('bot-access-token');
       });
 
       it('returns the correct refreshToken', function () {
-        expect(actual.refreshToken).to.not.exist;
+        expect(actual.refreshToken).to.eql('bot-refresh-token');
       });
     });
 
@@ -489,11 +390,15 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('sets the bot access_token as a root property', function () {
-        expect(actual.params.access_token).to.eql('bot-token');
+        expect(actual.params.access_token).to.eql('bot-access-token');
       });
 
       it('sets the bot refresh_token as a root property', function () {
-        expect(actual.params.refresh_token).to.not.exist;
+        expect(actual.params.refresh_token).to.eql('bot-refresh-token')
+      });
+
+      it("sets the bot' access_token's expires_in as a root property", function () {
+        expect(actual.params.expires_in).to.eql(params.expires_in)
       });
     });
 
@@ -503,7 +408,7 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('does not set any other properties on the authed_user object', function () {
-        expect(Object.keys(actual.params.authed_user)).to.eql(['id']);
+        expect(actual.params.authed_user).to.have.keys('id');
       });
     });
 
@@ -521,11 +426,157 @@ describe('getOAuthAccessTokenAndHandleResponse', function () {
       });
 
       it('sets the bot access_token on the authed_bot property', function () {
-        expect(actual.params.authed_bot.access_token).to.eql('bot-token');
+        expect(actual.params.authed_bot.access_token).to.eql('bot-access-token');
       });
 
       it('sets the bot refresh_token on the authed_bot property', function () {
-        expect(actual.params.authed_bot.refresh_token).to.not.exist;
+        expect(actual.params.authed_bot.refresh_token).to.eql('bot-refresh-token')
+      });
+
+      it("sets the bot's access_token's expires_in on the authed_bot property", function () {
+        expect(actual.params.authed_bot.expires_in).to.eql(params.expires_in)
+      });
+    });
+  });
+
+  context('user and bot auth', function (done) {
+    beforeEach(function(done) {
+
+      accessToken = 'bot-access-token';
+      refreshToken = 'bot-refresh-token';
+
+      params = {
+        authed_user: {
+          id: 'user-id',
+          scope: 'user-scope-1,user-scope-2',
+          access_token: 'user-access-token',
+          refresh_token: 'user-refresh-token',
+          token_type: 'user',
+          expires_in: (Math.floor(Math.random() * 39600) + 3600),
+        },
+        bot_user_id: 'bot-user-id',
+        scope: 'bot-scope-1,bot-scope-2',
+        access_token: 'bot-access-token',
+        expires_in: (Math.floor(Math.random() * 39600) + 3600),
+        token_type: 'bot',
+      };
+
+      strategy = new Strategy(options, () => {});
+      strategy._oauth2._getOAuthAccessToken = function (a, b, cb) {
+        cb(null, accessToken, refreshToken, params)
+      }
+
+      expect(strategy.profileUrl).to.not.exist;
+
+      strategy.getOAuthAccessTokenAndHandleResponse('', {}, function (err, at, rt, p) {
+        actual.error = err;
+        actual.accessToken = at;
+        actual.refreshToken = rt;
+        actual.params = p;
+
+        done(err);
+      });
+    });
+
+    context('this.profileUrl', function () {
+      context('skipUserProfile == false && _hasCustomProfileUrl == false', function () {
+        it('sets the profileUrl to users.identity', function () {
+          expect(strategy.profileUrl).to.eql('https://slack.com/api/users.identity');
+        });
+      });
+    });
+
+    context('error', function () {
+      it('does not return an error', function () {
+        expect(actual.error).to.be.null;
+      });
+    });
+
+    context('tokens', function () {
+      it('returns the correct accessToken', function () {
+        expect(actual.accessToken).to.eql('user-access-token');
+      });
+
+      it('returns the correct refreshToken', function () {
+        expect(actual.refreshToken).to.eql('user-refresh-token')
+      });
+    });
+
+    context('root object', function () {
+      it('sets the user id as a root property', function () {
+        expect(actual.params.id).to.eql('user-id');
+      });
+
+      it('sets the user scope as a root property', function () {
+        expect(actual.params.scope).to.eql('user-scope-1,user-scope-2');
+      });
+
+      it('sets the user tokentype as a root property', function () {
+        expect(actual.params.token_type).to.eql('user');
+      });
+
+      it('sets the user access_token as a root property', function () {
+        expect(actual.params.access_token).to.eql('user-access-token');
+      });
+
+      it('sets the user refresh_token as a root property', function () {
+        expect(actual.params.refresh_token).to.eql('user-refresh-token')
+      });
+
+      it("sets the user's access_token expires_in as a root property", function () {
+        expect(actual.params.expires_in).to.eql(params.authed_user.expires_in)
+      });
+    });
+
+    context('authed_user', function () {
+      it('sets the user id on the authed_user property', function () {
+        expect(actual.params.authed_user.id).to.eql('user-id');
+      });
+
+      it('sets the user scope on the authed_user property', function () {
+        expect(actual.params.authed_user.scope).to.eql('user-scope-1,user-scope-2');
+      });
+
+      it('sets the user tokentype on the authed_user property', function () {
+        expect(actual.params.authed_user.token_type).to.eql('user');
+      });
+
+      it('sets the user access_token on the authed_user property', function () {
+        expect(actual.params.authed_user.access_token).to.eql('user-access-token');
+      });
+
+      it('sets the user refresh_token on the authed_user property', function () {
+        expect(actual.params.authed_user.refresh_token).to.eql('user-refresh-token')
+      });
+
+      it("sets the user's access_token expires_in as an authed_user property", function () {
+        expect(actual.params.authed_user.expires_in).to.eql(params.authed_user.expires_in)
+      });
+    });
+
+    context('authed_bot', function () {
+      it('sets the bot id on the authed_bot property', function () {
+        expect(actual.params.authed_bot.id).to.eql('bot-user-id');
+      });
+
+      it('sets the bot scope on the authed_bot property', function () {
+        expect(actual.params.authed_bot.scope).to.eql('bot-scope-1,bot-scope-2');
+      });
+
+      it('sets the bot tokentype on the authed_bot property', function () {
+        expect(actual.params.authed_bot.token_type).to.eql('bot');
+      });
+
+      it('sets the bot access_token on the authed_bot property', function () {
+        expect(actual.params.authed_bot.access_token).to.eql('bot-access-token');
+      });
+
+      it('sets the bot refresh_token on the authed_bot property', function () {
+        expect(actual.params.authed_bot.refresh_token).to.eql('bot-refresh-token')
+      });
+
+      it("sets the bot's access_token's exipres_in on the authed_bot property", function () {
+        expect(actual.params.authed_bot.expires_in).to.eql(params.expires_in)
       });
     });
   });
