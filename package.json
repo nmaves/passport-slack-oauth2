@@ -12,7 +12,7 @@
   ],
   "main": "./lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./node_modules/.bin/mocha"
   },
   "repository": {
     "type": "git",
@@ -34,5 +34,9 @@
   "homepage": "https://github.com/nmaves/passport-slack-oauth2#readme",
   "dependencies": {
     "passport-oauth2": "^1.7.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0"
   }
 }
